@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Your RTMP server configuration
     let rtmp_server_ip = "127.0.0.1";
-    let rtmp_server_port = 1936;
+    let rtmp_server_port = 1935;
     let rtmp_server_app = "live";
     let rtmp_server_stream = "stream";
 
@@ -33,13 +33,14 @@ async fn main() -> anyhow::Result<()> {
 
     // Create GStreamer pipeline with video resizing
     let pipeline_str = format!(
-        "videotestsrc ! videoconvert ! queue ! videoscale ! video/x-raw,width=800,height=800 ! queue ! x264enc tune=zerolatency ! flvmux ! rtmpsink location=rtmp://{}:{}/{}/{}",
+        "videotestsrc ! videoconvert ! videoscale ! video/x-raw,width=800,height=800 ! x264enc tune=zerolatency ! flvmux ! rtmpsink location=rtmp://{}:{}/{}/{}",
         rtmp_server_ip, rtmp_server_port, rtmp_server_app, rtmp_server_stream
     );
     let pipeline = gst::parse_launch(&pipeline_str)?;
 
     // Start GStreamer pipeline
     pipeline.set_state(gst::State::Playing)?;
+
     println!(
         "stream at rtmp://{}:{}/{}/{}",
         rtmp_server_ip, rtmp_server_port, rtmp_server_app, rtmp_server_stream
