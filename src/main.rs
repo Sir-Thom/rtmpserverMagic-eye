@@ -37,6 +37,7 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await?;
     info!("Actix web server stopped");
-
+    tokio::signal::ctrl_c().await?;
+    info!("Ctrl-C received, shutting down");
     Ok(())
 }

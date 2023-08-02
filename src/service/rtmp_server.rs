@@ -68,6 +68,7 @@ impl RtmpServerManager {
         // Store the server addresses in the hashmap
         let mut servers = self.servers.lock().unwrap();
         servers.extend(server_addresses);
+        tokio::spawn(async move { channel.run().await });
 
         Ok(())
     }
@@ -121,7 +122,6 @@ pub async fn get_by_id_rtmp_servers_handler(
     let server = server_manager.get_by_id_rtmp_servers(id);
     if server != "" {
         info!("Successfully retrieved RTMP server");
-        json!(server);
         return HttpResponse::Ok().json(server);
     } else if server.is_empty() {
         warn!("No RTMP servers running");
