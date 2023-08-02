@@ -1,62 +1,42 @@
-use std::io;
+use actix_web::{
+    web::{self, Data},
+    App, HttpServer,
+};
+use env_logger::Env;
+use log::info;
+use rtmpserver::service::rtmp_server::{
+    create_rtmp_server_handler, get_all_rtmp_servers_handler, get_by_id_rtmp_servers_handler,
+    RtmpServerManager,
+};
 
-use gstreamer as gst;
-use gstreamer::prelude::*;
-use gstreamer_app as gst_app;
-use rtmp::channels::ChannelsManager;
-use rtmp::rtmp::RtmpServer;
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    gst::init()?;
-
-    // Your RTMP server configuration
-    let rtmp_server_ip = "127.0.0.1";
-    let rtmp_server_port = 1935;
-    let rtmp_server_app = "live";
-    let rtmp_server_stream = "stream";
-
-    let mut channel = ChannelsManager::new(None);
-    let producer = channel.get_channel_event_producer();
-
-    let listen_port = 1936;
-    let address = format!("127.0.0.1:{port}", port = listen_port);
-
-    let mut rtmp_server = RtmpServer::new(address, producer);
-    tokio::spawn(async move {
-        if let Err(err) = rtmp_server.run().await {
-            log::error!("rtmp server error: {}\n", err);
-        }
-    });
-
-    tokio::spawn(async move { channel.run().await });
-
-    // Create GStreamer pipeline with video resizing
-    let pipeline_str = format!(
-        "videotestsrc ! videoconvert ! videoscale ! video/x-raw,width=800,height=800 ! x264enc tune=zerolatency ! flvmux ! rtmpsink location=rtmp://{}:{}/{}/{}",
-        rtmp_server_ip, rtmp_server_port, rtmp_server_app, rtmp_server_stream
-    );
-    let pipeline = gst::parse_launch(&pipeline_str)?;
-
-    // Start GStreamer pipeline
-    pipeline.set_state(gst::State::Playing)?;
-
-    println!(
-        "stream at rtmp://{}:{}/{}/{}",
-        rtmp_server_ip, rtmp_server_port, rtmp_server_app, rtmp_server_stream
-    );
-
-    println!("Press 'q' and Enter to stop the pipeline.");
-    loop {
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        if input.trim() == "q" {
-            break;
-        }
-    }
-
-    // Stop GStreamer pipeline
-    pipeline.set_state(gst::State::Null)?;
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(Env::default().default_filter_or("debug"));
+    //print api address
+    println!("API is running on: http://127.0.0.1:3030");
+    // Start the Actix web server
+    HttpServer::new(|| {
+        App::new()
+            .app_data(Data::new(RtmpServerManager::new()))
+            .service(web::resource("/").to(|| async { "hello world" }))
+            .service(web::resource("/rtmp").to(|| async {
+                info!("API: Received request for /rtmp");
+                "RTMP servers are running!"
+            }))
+            .service(
+                web::resource("/rtmp/rtmp_servers/create_rtmp_server/{num_servers}")
+                    .to(create_rtmp_server_handler),
+            )
+            .route(
+                "/rtmp/rtmp_servers/",
+                web::get().to(get_all_rtmp_servers_handler),
+            )
+            .service(web::resource("/rtmp/rtmp_servers/{id}").to(get_by_id_rtmp_servers_handler))
+    })
+    .bind(("127.0.0.1", 3030))?
+    .run()
+    .await?;
+    info!("Actix web server stopped");
 
     Ok(())
 }
