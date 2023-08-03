@@ -8,11 +8,30 @@ pub use std::collections::HashMap;
 pub use std::env;
 pub use std::sync::{Arc, Mutex};
 
+/// Struct to manage RTMP servers
+///
+/// # Attributes
+/// * `servers` - The servers
+/// * `server_id_counter` - The server ID counter
+///
+/// # Example
+/// ```
+/// use api::service::rtmp_server::RtmpServerManager;
+///     
+/// let server_manager = RtmpServerManager::new();
+/// ```
 pub struct RtmpServerManager {
     servers: Arc<Mutex<HashMap<u16, String>>>,
     server_id_counter: Mutex<u16>, // The server ID counter is now inside the RtmpServerManager
 }
-
+/// Implementation of the RTMP server manager
+///
+/// # Example
+/// ```
+/// use api::service::rtmp_server::RtmpServerManager;
+///
+/// let server_manager = RtmpServerManager::new();
+/// ```
 impl RtmpServerManager {
     pub fn new() -> Self {
         RtmpServerManager {
@@ -21,7 +40,21 @@ impl RtmpServerManager {
         }
     }
 
-    // Function to create RTMP servers
+    /// Function to create RTMP servers
+    ///
+    /// # Arguments
+    /// * `num_servers` - The number of servers to create
+    ///
+    /// # Returns
+    /// * `anyhow::Result<()>` - The result
+    ///
+    /// # Example
+    /// ```
+    /// use api::service::rtmp_server::RtmpServerManager;
+    ///
+    /// let server_manager = RtmpServerManager::new();
+    /// server_manager.create_rtmp_server(1);
+    /// ```
     pub async fn create_rtmp_server(&self, num_servers: u16) -> anyhow::Result<()> {
         let mut channel = ChannelsManager::new(None);
         let producer = channel.get_channel_event_producer();
@@ -69,11 +102,22 @@ impl RtmpServerManager {
 
         Ok(())
     }
-
+    /// Function to get all RTMP servers
+    ///
+    /// # Returns
+    /// * `HashMap<u16, String>` - The servers address
+    ///
     pub fn get_all_rtmp_servers(&self) -> HashMap<u16, String> {
         self.servers.lock().unwrap().clone()
     }
-
+    /// Function to get RTMP servers by ID
+    ///
+    /// # Arguments
+    /// * `id` - The ID of the server
+    ///
+    /// # Returns
+    /// * `String` - The server address
+    ///
     pub fn get_by_id_rtmp_servers(&self, id: u16) -> String {
         self.servers.lock().unwrap().get(&id).unwrap().clone()
     }
