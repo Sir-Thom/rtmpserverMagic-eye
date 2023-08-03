@@ -1,4 +1,6 @@
 # Rtmp Server
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FSir-Thom%2FrtmpserverMagic-eye.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FSir-Thom%2FrtmpserverMagic-eye?ref=badge_shield)
+
 
 ## Description
 
@@ -28,3 +30,7 @@ http://{ip}:3030/rtmp/rtmp_servers/
 ```plain text
 http://{ip}:3030/rtmp/rtmp_servers/{stream_id}
 ```
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FSir-Thom%2FrtmpserverMagic-eye.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FSir-Thom%2FrtmpserverMagic-eye?ref=badge_large)
