@@ -3,7 +3,33 @@ pub use actix_web::{web, HttpResponse, Responder};
 pub use log::{error, info, warn};
 pub use serde_json::json;
 pub use std::collections::HashMap;
-
+/// Function to get all RTMP servers
+///
+/// # Arguments
+/// * `server_manager` - The server manager
+///
+/// # Returns
+/// * `impl Responder` - The response
+///
+/// # Example
+/// ```
+/// use actix_web::{web, App, HttpServer};
+/// use api::controller::controller_rtmp::get_all_rtmp_servers_handler;
+/// use api::service::rtmp_server::RtmpServerManager;
+///
+/// #[actix_web::main]
+/// async fn main() -> std::io::Result<()> {
+///   HttpServer::new(|| {
+///     App::new()
+///      .app_data(Data::new(RtmpServerManager::new()))
+///     .service(web::resource("/rtmp").to(get_all_rtmp_servers_handler))
+///  })
+/// .bind(("ip", port))?
+/// .run()
+/// .await?;
+/// Ok(())
+/// }
+/// ```
 pub async fn get_all_rtmp_servers_handler(
     server_manager: web::Data<RtmpServerManager>,
 ) -> impl Responder {
@@ -16,7 +42,34 @@ pub async fn get_all_rtmp_servers_handler(
     json!(servers);
     HttpResponse::Ok().json(servers)
 }
-
+/// Function to get RTMP servers by ID
+///
+/// # Arguments
+/// * `server_manager` - The server manager
+/// * `id` - The ID of the server
+///
+/// # Returns
+/// * `impl Responder` - The response
+///
+/// # Example
+/// ```
+/// use actix_web::{web, App, HttpServer};
+/// use api::controller::controller_rtmp::get_by_id_rtmp_servers_handler;
+/// use api::service::rtmp_server::RtmpServerManager;
+///     
+/// #[actix_web::main]
+/// async fn main() -> std::io::Result<()> {
+///    HttpServer::new(|| {
+///      App::new()
+///        .app_data(Data::new(RtmpServerManager::new()))
+///       .service(web::resource("/rtmp/{id}").to(get_by_id_rtmp_servers_handler))
+///  })
+/// .bind(("ip", port))?
+/// .run()
+/// .await?;
+/// Ok(())
+/// }
+/// ```
 pub async fn get_by_id_rtmp_servers_handler(
     server_manager: web::Data<RtmpServerManager>,
     id: web::Path<u16>,
@@ -34,6 +87,37 @@ pub async fn get_by_id_rtmp_servers_handler(
         return HttpResponse::InternalServerError().body("Error retrieving RTMP server");
     }
 }
+/// Function to create RTMP servers
+///
+/// # Arguments
+/// * `server_manager` - The server manager
+/// * `num_servers` - The number of servers to create
+///
+/// # Returns
+/// * `impl Responder` - The response
+///
+/// # Example
+/// ```
+/// use actix_web::{web, App, HttpServer};
+/// use api::controller::controller_rtmp::create_rtmp_server_handler;
+/// use api::service::rtmp_server::RtmpServerManager;
+///
+/// #[actix_web::main]
+/// async fn main() -> std::io::Result<()> {
+///    HttpServer::new(|| {
+///       App::new()
+///          .app_data(Data::new(RtmpServerManager::new()))
+///         .service(
+///            web::resource("/rtmp/create_rtmp_server/{num_servers}")
+///              .to(create_rtmp_server_handler))
+///   })
+///  .bind(("ip", port))?
+/// .run()
+/// .await?;
+/// Ok(())
+/// }
+///
+///
 pub async fn create_rtmp_server_handler(
     server_manager: web::Data<RtmpServerManager>,
     num_servers: web::Path<u16>,

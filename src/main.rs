@@ -5,7 +5,6 @@ use api::controller::controller_rtmp::{
 };
 use api::service::rtmp_server::RtmpServerManager;
 use log::info;
-
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
     // Initialize the logger
