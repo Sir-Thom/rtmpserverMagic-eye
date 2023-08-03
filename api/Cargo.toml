@@ -1,19 +1,21 @@
 [package]
 name = "api"
 version = "0.1.0"
+authors = ["Thomas Toulouse"]
+license = "MIT"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+crate-type = ["rlib"]
+name = "api"
+path = "src/lib.rs"
+
 [dependencies]
-#gstreamer = "0.20.7"
-#gstreamer-app = "0.20.7"
 actix-web = "4.3.1"
 serde_json = "1.0"
-serde = "1.0"
 tokio = { version = "1", features = ["full"] }
 rtmp = "0.3.1"
 anyhow = "1.0.40"
-gstreamer-video = "0.20.7"
 log = "0.4.19"
-env_logger = "0.10.0"
