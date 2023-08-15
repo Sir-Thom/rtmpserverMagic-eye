@@ -1,8 +1,14 @@
 use crate::service::rtmp_server::RtmpServerManager;
 pub use actix_web::{web, HttpResponse, Responder};
+use lazy_static::lazy_static;
 pub use log::{error, info, warn};
 pub use serde_json::json;
 pub use std::collections::HashMap;
+use tokio::sync::RwLock;
+// Define a static variable to hold the RTMP servers data
+lazy_static! {
+    static ref RTMP_SERVERS: RwLock<HashMap<u16, String>> = RwLock::new(HashMap::new());
+}
 /// Function to get all RTMP servers
 ///
 /// # Arguments
@@ -30,17 +36,15 @@ pub use std::collections::HashMap;
 /// Ok(())
 /// }
 /// ```
-pub async fn get_all_rtmp_servers_handler(
-    server_manager: web::Data<RtmpServerManager>,
-) -> impl Responder {
-    let servers: HashMap<u16, String> = server_manager.get_all_rtmp_servers();
+pub async fn get_all_rtmp_servers_handler() -> impl Responder {
+    let servers = RTMP_SERVERS.read().await.clone();
+    info!("all servers: {:?}", servers);
     if servers.is_empty() {
         warn!("No RTMP servers running");
         return HttpResponse::NotFound().body("No RTMP servers running");
     }
     info!("Successfully retrieved all RTMP servers");
-    json!(servers);
-    HttpResponse::Ok().json(servers)
+    HttpResponse::Ok().json(&servers)
 }
 /// Function to get RTMP servers by ID
 ///
@@ -70,21 +74,20 @@ pub async fn get_all_rtmp_servers_handler(
 /// Ok(())
 /// }
 /// ```
-pub async fn get_by_id_rtmp_servers_handler(
-    server_manager: web::Data<RtmpServerManager>,
-    id: web::Path<u16>,
-) -> impl Responder {
+pub async fn get_by_id_rtmp_servers_handler(id: web::Path<u16>) -> impl Responder {
     let id = id.into_inner();
-    let server = server_manager.get_by_id_rtmp_servers(id);
-    if server != "" {
-        info!("Successfully retrieved RTMP server");
-        return HttpResponse::Ok().json(server);
-    } else if server.is_empty() {
-        warn!("No RTMP servers running");
-        return HttpResponse::NotFound().body("No RTMP servers running");
-    } else {
-        error!("Error retrieving RTMP server");
-        return HttpResponse::InternalServerError().body("Error retrieving RTMP server");
+    let servers = RTMP_SERVERS.read().await.clone();
+    match servers.get(&id) {
+        Some(server) => {
+            let i = servers.get(&id).unwrap().clone();
+            info!("Successfully created {} RTMP servers", i);
+            info!("Successfully retrieved RTMP server");
+            HttpResponse::Ok().json(server)
+        }
+        None => {
+            warn!("No RTMP servers running");
+            HttpResponse::NotFound().body("No RTMP servers running")
+        }
     }
 }
 /// Function to create RTMP servers
@@ -123,14 +126,19 @@ pub async fn create_rtmp_server_handler(
     num_servers: web::Path<u16>,
 ) -> impl Responder {
     let num_servers = num_servers.into_inner();
+    let mut servers = RTMP_SERVERS.write().await;
+
     if let Err(err) = server_manager.create_rtmp_server(num_servers).await {
         error!("Error creating RTMP servers: {}", err);
+
         HttpResponse::InternalServerError().body(format!("Error creating RTMP servers: {}", err))
     } else {
+        let i = servers
+            .insert(1, server_manager.get_by_id_rtmp_servers(1))
+            .unwrap()
+            .clone();
+        info!("Successfully created {} RTMP servers", i);
         info!("Successfully created {} RTMP servers", num_servers);
-        HttpResponse::Ok().body(format!(
-            "Successfully created {} RTMP servers!",
-            num_servers
-        ))
+        HttpResponse::Ok().body(format!("Successfully created {} RTMP servers", num_servers))
     }
 }

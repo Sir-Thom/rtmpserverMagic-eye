@@ -1,13 +1,20 @@
 pub use actix_web::{web, HttpResponse, Responder};
 pub use log::{error, info, warn};
-pub use rtmp::channels::ChannelsManager;
+use rtmp::relay::pull_client::PullClient;
+//depreacted
+//use rtmp::channels::ChannelsManager;
 pub use rtmp::rtmp::RtmpServer;
-
+use lazy_static::lazy_static;
 pub use serde_json::json;
+use tokio::sync::RwLock;
 pub use std::collections::HashMap;
+use std::collections::HashSet;
 pub use std::env;
 pub use std::sync::{Arc, Mutex};
-
+use streamhub::StreamsHub;
+lazy_static! {
+    static ref RTMP_SERVERS: RwLock<HashMap<u16, String>> = RwLock::new(HashMap::new());
+}
 /// Struct to manage RTMP servers
 ///
 /// # Attributes
@@ -21,7 +28,8 @@ pub use std::sync::{Arc, Mutex};
 /// let server_manager = RtmpServerManager::new();
 /// ```
 pub struct RtmpServerManager {
-    servers: Arc<Mutex<HashMap<u16, String>>>,
+    servers: RTMP_SERVERS,
+    served_ips: HashSet<String>,
     server_id_counter: Mutex<u16>, // The server ID counter is now inside the RtmpServerManager
 }
 /// Implementation of the RTMP server manager
@@ -35,7 +43,9 @@ pub struct RtmpServerManager {
 impl RtmpServerManager {
     pub fn new() -> Self {
         RtmpServerManager {
-            servers: Arc::new(Mutex::new(HashMap::new())),
+            
+            servers:RTMP_SERVERS,
+            served_ips: HashSet<String>,
             server_id_counter: Mutex::new(0),
         }
     }
@@ -56,11 +66,11 @@ impl RtmpServerManager {
     /// server_manager.create_rtmp_server(1);
     /// ```
     pub async fn create_rtmp_server(&self, num_servers: u16) -> anyhow::Result<()> {
-        let mut channel = ChannelsManager::new(None);
-        let producer = channel.get_channel_event_producer();
+        let mut stream_hub = StreamsHub::new(None);
+        let sender = stream_hub.get_hub_event_sender();
 
-        let mut server_addresses = HashMap::new();
-
+        for _ in 0..num_servers {
+           
         for _ in 0..num_servers {
             let server_id = {
                 let mut counter = self.server_id_counter.lock().unwrap();
@@ -77,13 +87,42 @@ impl RtmpServerManager {
 
             let ip = format!("{}", base_ip);
             let port = base_port + server_id;
+
             let address = format!("{ip}:{port}", ip = ip, port = port);
 
-            let mut rtmp_server = RtmpServer::new(address.clone(), producer.clone());
+            // Check if the IP address is already being served
+            if self.served_ips.contains(&ip) {
+                log::warn!("IP address {} is already being served", ip);
+                continue; // Skip this server creation
+            }
+
+            // Update the set of served IPs
+            self.served_ips.insert(ip.clone());
+
+            //pull the rtmp stream from 192.168.0.3:1935 to local
+            let address = format!("{ip}:{port}", ip = "192.168.0.3", port = "1935");
+            log::info!("start rtmp pull client from address: {}", address);
+            let mut pull_client = PullClient::new(
+                address,
+                stream_hub.get_client_event_consumer(),
+                sender.clone(),
+            );
 
             tokio::spawn(async move {
+                if let Err(err) = pull_client.run().await {
+                    log::error!("pull client error {}\n", err);
+                }
+            });
+            stream_hub.set_rtmp_pull_enabled(true);
+            //end pull
+            let ip = format!("{}", base_ip);
+            let port = base_port + server_id;
+            let address = format!("127.0.0.1:{port}", port = port);
+
+            let mut rtmp_server = RtmpServer::new(address.clone(), sender.clone(), 1);
+            tokio::spawn(async move {
                 if let Err(err) = rtmp_server.run().await {
-                    error!("RTMP server error: {}", err);
+                    log::error!("rtmp server error: {}\n", err);
                 }
             });
 
@@ -98,7 +137,7 @@ impl RtmpServerManager {
         // Store the server addresses in the hashmap
         let mut servers = self.servers.lock().unwrap();
         servers.extend(server_addresses);
-        tokio::spawn(async move { channel.run().await });
+        tokio::spawn(async move { stream_hub.run().await });
 
         Ok(())
     }
@@ -107,8 +146,9 @@ impl RtmpServerManager {
     /// # Returns
     /// * `HashMap<u16, String>` - The servers address
     ///
-    pub fn get_all_rtmp_servers(&self) -> HashMap<u16, String> {
-        self.servers.lock().unwrap().clone()
+    pub async fn get_all_rtmp_servers(&self) -> HashMap<u16, std::string::String> {
+        self.servers.read().await.clone()
+    
     }
     /// Function to get RTMP servers by ID
     ///
