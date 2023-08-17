@@ -1,12 +1,13 @@
 pub use actix_web::{web, HttpResponse, Responder};
 pub use log::{error, info, warn};
-pub use rtmp::channels::ChannelsManager;
 pub use rtmp::rtmp::RtmpServer;
 
 pub use serde_json::json;
 pub use std::collections::HashMap;
 pub use std::env;
+use std::sync::RwLock;
 pub use std::sync::{Arc, Mutex};
+use streamhub::StreamsHub;
 
 /// Struct to manage RTMP servers
 ///
@@ -23,6 +24,7 @@ pub use std::sync::{Arc, Mutex};
 pub struct RtmpServerManager {
     servers: Arc<Mutex<HashMap<u16, String>>>,
     server_id_counter: Mutex<u16>, // The server ID counter is now inside the RtmpServerManager
+    dynamic_ports: RwLock<Vec<u16>>,
 }
 /// Implementation of the RTMP server manager
 ///
@@ -37,7 +39,20 @@ impl RtmpServerManager {
         RtmpServerManager {
             servers: Arc::new(Mutex::new(HashMap::new())),
             server_id_counter: Mutex::new(0),
+            dynamic_ports: RwLock::new(Vec::new()),
         }
+    }
+
+    fn get_next_dynamic_port(&self) -> u16 {
+        let mut dynamic_ports = self.dynamic_ports.write().unwrap();
+        for port in 1935..=65535 {
+            if !dynamic_ports.contains(&port) {
+                dynamic_ports.push(port);
+                return port;
+            }
+        }
+        // Fallback to a default port if no available ports are found
+        1935
     }
 
     /// Function to create RTMP servers
@@ -55,11 +70,11 @@ impl RtmpServerManager {
     /// let server_manager = RtmpServerManager::new();
     /// server_manager.create_rtmp_server(1);
     /// ```
-    pub async fn create_rtmp_server(&self, num_servers: u16) -> anyhow::Result<()> {
-        let mut channel = ChannelsManager::new(None);
-        let producer = channel.get_channel_event_producer();
+    pub async fn create_rtmp_server(&self, num_servers: u16) -> anyhow::Result<Vec<(u16, String)>> {
+        let mut stream_hub = StreamsHub::new(None);
+        let sender = stream_hub.get_hub_event_sender();
 
-        let mut server_addresses = HashMap::new();
+        let mut server_addresses = Vec::new();
 
         for _ in 0..num_servers {
             let server_id = {
@@ -70,16 +85,11 @@ impl RtmpServerManager {
             };
 
             let base_ip = env::var("BASE_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
-            let base_port: u16 = env::var("BASE_PORT")
-                .unwrap_or_else(|_| "1935".to_string())
-                .parse()
-                .unwrap();
-
             let ip = format!("{}", base_ip);
-            let port = base_port + server_id;
+            let port = self.get_next_dynamic_port(); // Use the dynamically assigned port
             let address = format!("{ip}:{port}", ip = ip, port = port);
 
-            let mut rtmp_server = RtmpServer::new(address.clone(), producer.clone());
+            let mut rtmp_server = RtmpServer::new(address.clone(), sender.clone(), 1);
 
             tokio::spawn(async move {
                 if let Err(err) = rtmp_server.run().await {
@@ -92,16 +102,14 @@ impl RtmpServerManager {
                 server_id, address
             );
 
-            server_addresses.insert(server_id, address);
+            server_addresses.push((server_id, address));
         }
 
-        // Store the server addresses in the hashmap
-        let mut servers = self.servers.lock().unwrap();
-        servers.extend(server_addresses);
-        tokio::spawn(async move { channel.run().await });
+        tokio::spawn(async move { stream_hub.run().await });
 
-        Ok(())
+        Ok(server_addresses)
     }
+
     /// Function to get all RTMP servers
     ///
     /// # Returns
@@ -119,6 +127,13 @@ impl RtmpServerManager {
     /// * `String` - The server address
     ///
     pub fn get_by_id_rtmp_servers(&self, id: u16) -> String {
-        self.servers.lock().unwrap().get(&id).unwrap().clone()
+        info!("{:?}", self.servers.lock().unwrap().get(&id).unwrap());
+        self.servers
+            .lock()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone()
+            .to_string()
     }
 }
