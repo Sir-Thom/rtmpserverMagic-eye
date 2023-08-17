@@ -38,7 +38,7 @@ lazy_static! {
 /// ```
 pub async fn get_all_rtmp_servers_handler() -> impl Responder {
     let servers = RTMP_SERVERS.read().await.clone();
-    info!("all servers: {:?}", servers);
+    info!("all servers: {:?}", RTMP_SERVERS.read().await.clone());
     if servers.is_empty() {
         warn!("No RTMP servers running");
         return HttpResponse::NotFound().body("No RTMP servers running");
@@ -126,19 +126,22 @@ pub async fn create_rtmp_server_handler(
     num_servers: web::Path<u16>,
 ) -> impl Responder {
     let num_servers = num_servers.into_inner();
-    let mut servers = RTMP_SERVERS.write().await;
 
-    if let Err(err) = server_manager.create_rtmp_server(num_servers).await {
-        error!("Error creating RTMP servers: {}", err);
-
-        HttpResponse::InternalServerError().body(format!("Error creating RTMP servers: {}", err))
-    } else {
-        let i = servers
-            .insert(1, server_manager.get_by_id_rtmp_servers(1))
-            .unwrap()
-            .clone();
-        info!("Successfully created {} RTMP servers", i);
-        info!("Successfully created {} RTMP servers", num_servers);
-        HttpResponse::Ok().body(format!("Successfully created {} RTMP servers", num_servers))
+    match server_manager.create_rtmp_server(num_servers).await {
+        Ok(servers) => {
+            for (server_id, server_address) in servers {
+                RTMP_SERVERS
+                    .write()
+                    .await
+                    .insert(server_id, server_address.clone());
+                info!("Successfully created RTMP server {}", server_id);
+            }
+            HttpResponse::Ok().body(format!("Successfully created {} RTMP servers", num_servers))
+        }
+        Err(err) => {
+            error!("Error creating RTMP servers: {}", err);
+            HttpResponse::InternalServerError()
+                .body(format!("Error creating RTMP servers: {}", err))
+        }
     }
 }

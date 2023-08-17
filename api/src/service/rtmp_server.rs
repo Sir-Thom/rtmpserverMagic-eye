@@ -1,20 +1,14 @@
 pub use actix_web::{web, HttpResponse, Responder};
 pub use log::{error, info, warn};
-use rtmp::relay::pull_client::PullClient;
-//depreacted
-//use rtmp::channels::ChannelsManager;
 pub use rtmp::rtmp::RtmpServer;
-use lazy_static::lazy_static;
+
 pub use serde_json::json;
-use tokio::sync::RwLock;
 pub use std::collections::HashMap;
-use std::collections::HashSet;
 pub use std::env;
+use std::sync::RwLock;
 pub use std::sync::{Arc, Mutex};
 use streamhub::StreamsHub;
-lazy_static! {
-    static ref RTMP_SERVERS: RwLock<HashMap<u16, String>> = RwLock::new(HashMap::new());
-}
+
 /// Struct to manage RTMP servers
 ///
 /// # Attributes
@@ -28,9 +22,9 @@ lazy_static! {
 /// let server_manager = RtmpServerManager::new();
 /// ```
 pub struct RtmpServerManager {
-    servers: RTMP_SERVERS,
-    served_ips: HashSet<String>,
+    servers: Arc<Mutex<HashMap<u16, String>>>,
     server_id_counter: Mutex<u16>, // The server ID counter is now inside the RtmpServerManager
+    dynamic_ports: RwLock<Vec<u16>>,
 }
 /// Implementation of the RTMP server manager
 ///
@@ -43,11 +37,22 @@ pub struct RtmpServerManager {
 impl RtmpServerManager {
     pub fn new() -> Self {
         RtmpServerManager {
-            
-            servers:RTMP_SERVERS,
-            served_ips: HashSet<String>,
+            servers: Arc::new(Mutex::new(HashMap::new())),
             server_id_counter: Mutex::new(0),
+            dynamic_ports: RwLock::new(Vec::new()),
         }
+    }
+
+    fn get_next_dynamic_port(&self) -> u16 {
+        let mut dynamic_ports = self.dynamic_ports.write().unwrap();
+        for port in 1935..=65535 {
+            if !dynamic_ports.contains(&port) {
+                dynamic_ports.push(port);
+                return port;
+            }
+        }
+        // Fallback to a default port if no available ports are found
+        1935
     }
 
     /// Function to create RTMP servers
@@ -65,12 +70,12 @@ impl RtmpServerManager {
     /// let server_manager = RtmpServerManager::new();
     /// server_manager.create_rtmp_server(1);
     /// ```
-    pub async fn create_rtmp_server(&self, num_servers: u16) -> anyhow::Result<()> {
+    pub async fn create_rtmp_server(&self, num_servers: u16) -> anyhow::Result<Vec<(u16, String)>> {
         let mut stream_hub = StreamsHub::new(None);
         let sender = stream_hub.get_hub_event_sender();
 
-        for _ in 0..num_servers {
-           
+        let mut server_addresses = Vec::new();
+
         for _ in 0..num_servers {
             let server_id = {
                 let mut counter = self.server_id_counter.lock().unwrap();
@@ -80,49 +85,15 @@ impl RtmpServerManager {
             };
 
             let base_ip = env::var("BASE_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
-            let base_port: u16 = env::var("BASE_PORT")
-                .unwrap_or_else(|_| "1935".to_string())
-                .parse()
-                .unwrap();
-
             let ip = format!("{}", base_ip);
-            let port = base_port + server_id;
-
+            let port = self.get_next_dynamic_port(); // Use the dynamically assigned port
             let address = format!("{ip}:{port}", ip = ip, port = port);
 
-            // Check if the IP address is already being served
-            if self.served_ips.contains(&ip) {
-                log::warn!("IP address {} is already being served", ip);
-                continue; // Skip this server creation
-            }
-
-            // Update the set of served IPs
-            self.served_ips.insert(ip.clone());
-
-            //pull the rtmp stream from 192.168.0.3:1935 to local
-            let address = format!("{ip}:{port}", ip = "192.168.0.3", port = "1935");
-            log::info!("start rtmp pull client from address: {}", address);
-            let mut pull_client = PullClient::new(
-                address,
-                stream_hub.get_client_event_consumer(),
-                sender.clone(),
-            );
-
-            tokio::spawn(async move {
-                if let Err(err) = pull_client.run().await {
-                    log::error!("pull client error {}\n", err);
-                }
-            });
-            stream_hub.set_rtmp_pull_enabled(true);
-            //end pull
-            let ip = format!("{}", base_ip);
-            let port = base_port + server_id;
-            let address = format!("127.0.0.1:{port}", port = port);
-
             let mut rtmp_server = RtmpServer::new(address.clone(), sender.clone(), 1);
+
             tokio::spawn(async move {
                 if let Err(err) = rtmp_server.run().await {
-                    log::error!("rtmp server error: {}\n", err);
+                    error!("RTMP server error: {}", err);
                 }
             });
 
@@ -131,24 +102,21 @@ impl RtmpServerManager {
                 server_id, address
             );
 
-            server_addresses.insert(server_id, address);
+            server_addresses.push((server_id, address));
         }
 
-        // Store the server addresses in the hashmap
-        let mut servers = self.servers.lock().unwrap();
-        servers.extend(server_addresses);
         tokio::spawn(async move { stream_hub.run().await });
 
-        Ok(())
+        Ok(server_addresses)
     }
+
     /// Function to get all RTMP servers
     ///
     /// # Returns
     /// * `HashMap<u16, String>` - The servers address
     ///
-    pub async fn get_all_rtmp_servers(&self) -> HashMap<u16, std::string::String> {
-        self.servers.read().await.clone()
-    
+    pub fn get_all_rtmp_servers(&self) -> HashMap<u16, String> {
+        self.servers.lock().unwrap().clone()
     }
     /// Function to get RTMP servers by ID
     ///
@@ -159,6 +127,13 @@ impl RtmpServerManager {
     /// * `String` - The server address
     ///
     pub fn get_by_id_rtmp_servers(&self, id: u16) -> String {
-        self.servers.lock().unwrap().get(&id).unwrap().clone()
+        info!("{:?}", self.servers.lock().unwrap().get(&id).unwrap());
+        self.servers
+            .lock()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone()
+            .to_string()
     }
 }
