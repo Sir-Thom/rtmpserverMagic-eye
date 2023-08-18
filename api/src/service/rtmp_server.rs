@@ -1,7 +1,6 @@
 pub use actix_web::{web, HttpResponse, Responder};
 pub use log::{error, info, warn};
 pub use rtmp::rtmp::RtmpServer;
-
 pub use serde_json::json;
 pub use std::collections::HashMap;
 pub use std::env;
@@ -14,20 +13,18 @@ use streamhub::StreamsHub;
 /// # Attributes
 /// * `servers` - The servers
 /// * `server_id_counter` - The server ID counter
-///
-/// # Example
-/// ```
-/// use api::service::rtmp_server::RtmpServerManager;
-///     
-/// let server_manager = RtmpServerManager::new();
-/// ```
+/// * `dynamic_ports` - The dynamic ports
 pub struct RtmpServerManager {
     servers: Arc<Mutex<HashMap<u16, String>>>,
-    server_id_counter: Mutex<u16>, // The server ID counter is now inside the RtmpServerManager
+    server_id_counter: Mutex<u16>,
     dynamic_ports: RwLock<Vec<u16>>,
 }
 /// Implementation of the RTMP server manager
 ///
+/// # Attributes
+/// * `servers` - The servers
+/// * `server_id_counter` - The server ID counter
+/// * `dynamic_ports` - The dynamic ports
 /// # Example
 /// ```
 /// use api::service::rtmp_server::RtmpServerManager;
@@ -59,17 +56,17 @@ impl RtmpServerManager {
     ///
     /// # Arguments
     /// * `num_servers` - The number of servers to create
-    ///
     /// # Returns
-    /// * `anyhow::Result<()>` - The result
-    ///
+    /// * `Vec<(u16, String)>` - The servers address
     /// # Example
     /// ```
     /// use api::service::rtmp_server::RtmpServerManager;
     ///
     /// let server_manager = RtmpServerManager::new();
-    /// server_manager.create_rtmp_server(1);
+    /// let servers = server_manager.create_rtmp_server(1);
     /// ```
+    /// # Errors
+    /// * `anyhow::Error` - If the server fails to start
     pub async fn create_rtmp_server(&self, num_servers: u16) -> anyhow::Result<Vec<(u16, String)>> {
         let mut stream_hub = StreamsHub::new(None);
         let sender = stream_hub.get_hub_event_sender();
@@ -84,7 +81,7 @@ impl RtmpServerManager {
                 id
             };
 
-            let base_ip = env::var("BASE_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
+            let base_ip = env::var("BASE_IP").unwrap_or_else(|_| "0.0.0.0".to_string());
             let ip = format!("{}", base_ip);
             let port = self.get_next_dynamic_port(); // Use the dynamically assigned port
             let address = format!("{ip}:{port}", ip = ip, port = port);
@@ -113,19 +110,30 @@ impl RtmpServerManager {
     /// Function to get all RTMP servers
     ///
     /// # Returns
-    /// * `HashMap<u16, String>` - The servers address
-    ///
+    /// * `HashMap<u16, String>` - The servers
+    /// # Example
+    /// ```
+    /// use api::service::rtmp_server::RtmpServerManager;
+    /// use std::collections::HashMap;
+    /// let server_manager = RtmpServerManager::new();
+    /// let servers = server_manager.get_all_rtmp_servers();
+    /// ```
     pub fn get_all_rtmp_servers(&self) -> HashMap<u16, String> {
         self.servers.lock().unwrap().clone()
     }
     /// Function to get RTMP servers by ID
     ///
     /// # Arguments
-    /// * `id` - The ID of the server
-    ///
+    /// * `id` - The server ID
     /// # Returns
     /// * `String` - The server address
-    ///
+    /// # Example
+    /// ```
+    /// use api::service::rtmp_server::RtmpServerManager;
+    /// use std::collections::HashMap;
+    /// let server_manager = RtmpServerManager::new();
+    /// let servers = server_manager.get_by_id_rtmp_servers(1);
+    /// ```
     pub fn get_by_id_rtmp_servers(&self, id: u16) -> String {
         info!("{:?}", self.servers.lock().unwrap().get(&id).unwrap());
         self.servers

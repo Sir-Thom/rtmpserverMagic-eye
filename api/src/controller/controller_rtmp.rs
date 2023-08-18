@@ -6,6 +6,7 @@ pub use serde_json::json;
 pub use std::collections::HashMap;
 use tokio::sync::RwLock;
 // Define a static variable to hold the RTMP servers data
+
 lazy_static! {
     static ref RTMP_SERVERS: RwLock<HashMap<u16, String>> = RwLock::new(HashMap::new());
 }
@@ -36,6 +37,10 @@ lazy_static! {
 /// Ok(())
 /// }
 /// ```
+///
+/// #Error
+/// Returns an error if no RTMP servers are running
+///
 pub async fn get_all_rtmp_servers_handler() -> impl Responder {
     let servers = RTMP_SERVERS.read().await.clone();
     info!("all servers: {:?}", RTMP_SERVERS.read().await.clone());
@@ -74,6 +79,8 @@ pub async fn get_all_rtmp_servers_handler() -> impl Responder {
 /// Ok(())
 /// }
 /// ```
+/// #Error
+/// Returns an error if no RTMP servers are running or if the ID is invalid
 pub async fn get_by_id_rtmp_servers_handler(id: web::Path<u16>) -> impl Responder {
     let id = id.into_inner();
     let servers = RTMP_SERVERS.read().await.clone();
@@ -119,7 +126,9 @@ pub async fn get_by_id_rtmp_servers_handler(id: web::Path<u16>) -> impl Responde
 /// .await?;
 /// Ok(())
 /// }
-///
+/// ```
+/// #Error
+/// Returns an error if the number of servers is invalid
 ///
 pub async fn create_rtmp_server_handler(
     server_manager: web::Data<RtmpServerManager>,

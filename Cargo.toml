@@ -1,23 +1,45 @@
 [package]
-default-run = "rtmpserver"
-name = "rtmpserver"
+default-run = "rtmp_server_magic_eye"
+name = "rtmp_server_magic_eye"
 version = "0.1.0"
 edition = "2021"
 authors = ["Thomas Toulouse"]
 description = "A simple rtmp server"
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/Sir-Thom/rtmpserverMagic-eye"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = "4.3.1"
-log = "0.4.19"
-env_logger = "0.10.0"
-api = { path = "./api" }
+actix-web = "^4.3.1"
+log = "^0.4.20"
+env_logger = "^0.10.0"
+api-rtmp-server-magic-eye = { path = "./api" }
 
 
 [profile.release]
+opt-level = 3
+lto = true
+debug = false
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+codegen-units = 1
+panic = "abort"
+
+[profile.bench]
+opt-level = 3
+lto = true
+debug = false
+codegen-units = 1
+panic = "abort"
+
+[profile.test]
 opt-level = 3
 lto = true
 debug = false
