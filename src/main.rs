@@ -5,10 +5,11 @@ use api::controller::controller_rtmp::{
 };
 use api::service::rtmp_server::RtmpServerManager;
 use log::info;
+
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
     // Initialize the logger
-    env_logger::builder().filter_level(log::LevelFilter::Debug).init();
+    env_logger::builder().filter_level(log::LevelFilter::Info).init();
     println!("API is running on: http://127.0.0.1:3030/rtmp");
     HttpServer::new(|| {
         App::new()
@@ -21,7 +22,7 @@ pub async fn main() -> std::io::Result<()> {
             .service(web::resource("/rtmp/{id}").to(get_by_id_rtmp_servers_handler))
           
     })
-    .bind(("127.0.0.1", 3030))?
+    .bind(("0.0.0.0", 3030))?
     .run()
     .await?;
     info!("Actix web server stopped");
