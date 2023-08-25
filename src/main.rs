@@ -1,7 +1,7 @@
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
 use api::controller::controller_rtmp::{
-    create_rtmp_server_handler, get_all_rtmp_servers_handler, get_by_id_rtmp_servers_handler,
+    create_rtmp_server_handler, get_all_rtmp_servers_handler, get_by_id_rtmp_servers_handler,delete_rtmp_server_handler
 };
 use api::service::rtmp_server::RtmpServerManager;
 use log::info;
@@ -20,6 +20,7 @@ pub async fn main() -> std::io::Result<()> {
             
             .service(web::resource("/rtmp").to(get_all_rtmp_servers_handler))
             .service(web::resource("/rtmp/{id}").to(get_by_id_rtmp_servers_handler))
+            .service(web::resource("/rtmp/delete/{id}").to(delete_rtmp_server_handler))
           
     })
     .bind(("0.0.0.0", 3030))?

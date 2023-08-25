@@ -11,7 +11,7 @@ repository = "https://github.com/Sir-Thom/rtmpserverMagic-eye"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-crate-type = ["rlib"]
+crate-type = ["lib"]
 name = "api"
 path = "src/lib.rs"
 

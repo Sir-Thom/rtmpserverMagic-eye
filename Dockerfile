@@ -9,6 +9,6 @@ COPY . .
 
 # Build your Rust application
 RUN cargo build --release
-
+#CMD [ "" ]
 # Specify the command to run when the container starts
 CMD ["target/release/rtmp_server_magic_eye"]

@@ -5,8 +5,8 @@ pub use log::{error, info, warn};
 pub use serde_json::json;
 pub use std::collections::HashMap;
 use tokio::sync::RwLock;
-// Define a static variable to hold the RTMP servers data
 
+// Define a static variable to hold the RTMP servers data.
 lazy_static! {
     static ref RTMP_SERVERS: RwLock<HashMap<u16, String>> = RwLock::new(HashMap::new());
 }
@@ -88,7 +88,6 @@ pub async fn get_by_id_rtmp_servers_handler(id: web::Path<u16>) -> impl Responde
         Some(server) => {
             let i = servers.get(&id).unwrap().clone();
             info!("Successfully created {} RTMP servers", i);
-            info!("Successfully retrieved RTMP server");
             HttpResponse::Ok().json(server)
         }
         None => {
@@ -153,4 +152,18 @@ pub async fn create_rtmp_server_handler(
                 .body(format!("Error creating RTMP servers: {}", err))
         }
     }
+}
+
+pub async fn delete_rtmp_server_handler(
+    server_manager: web::Data<RtmpServerManager>,
+    id: web::Path<u16>,
+) -> impl Responder {
+    let id = id.into_inner();
+
+    server_manager.remove_rtmp_server(id).await; // Await the async call
+
+    RTMP_SERVERS.write().await.remove(&id);
+    info!("Successfully deleted RTMP server {}", id);
+
+    HttpResponse::Ok().body(format!("Successfully deleted RTMP server {}", id))
 }
