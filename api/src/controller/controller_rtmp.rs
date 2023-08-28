@@ -144,6 +144,7 @@ pub async fn create_rtmp_server_handler(
                     .insert(server_id, server_address.clone());
                 info!("Successfully created RTMP server {}", server_id);
             }
+
             HttpResponse::Ok().body(format!("Successfully created {} RTMP servers", num_servers))
         }
         Err(err) => {

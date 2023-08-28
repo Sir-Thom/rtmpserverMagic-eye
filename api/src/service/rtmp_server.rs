@@ -1,6 +1,7 @@
 use anyhow::Result;
+use hls::remuxer::HlsRemuxer;
 use log::{error, info, warn};
-use rtmp::rtmp::RtmpServer;
+use rtmp::{relay::pull_client::PullClient, rtmp::RtmpServer};
 use std::collections::HashMap;
 use std::env;
 use streamhub::StreamsHub;
@@ -41,6 +42,28 @@ impl RtmpServerManager {
         1935
     }
 
+    pub async fn start_hls(&mut self, stream_hub: &mut StreamsHub) -> Result<()> {
+        let event_producer = stream_hub.get_hub_event_sender();
+        let cient_event_consumer = stream_hub.get_client_event_consumer();
+        let mut hls_remuxer = HlsRemuxer::new(cient_event_consumer, event_producer, true);
+
+        tokio::spawn(async move {
+            if let Err(err) = hls_remuxer.run().await {
+                log::error!("rtmp event processor error: {}\n", err);
+            }
+        });
+
+        let port = 8010;
+
+        tokio::spawn(async move {
+            if let Err(err) = hls::server::run(port).await {
+                log::error!("hls server error: {}\n", err);
+            }
+        });
+        stream_hub.set_hls_enabled(true);
+        Ok(())
+    }
+
     pub async fn create_rtmp_server(&self, num_servers: u16) -> Result<Vec<(u16, String)>> {
         let mut stream_hub = StreamsHub::new(None);
         let sender = stream_hub.get_hub_event_sender();
@@ -71,11 +94,36 @@ impl RtmpServerManager {
                     error!("RTMP server error: {}", err);
                 }
             });
+            // RtmpServerManager::start_hls().await?;
 
             info!(
                 "RTMP server {} started and listening on: {}",
                 server_id, address
             );
+
+            use pnet::datalink;
+
+            for iface in datalink::interfaces() {
+                println!("{:?}", iface.ips);
+            }
+
+            let cient_event_consumer = stream_hub.get_client_event_consumer();
+            let mut hls_remuxer = HlsRemuxer::new(cient_event_consumer, sender.clone(), true);
+
+            tokio::spawn(async move {
+                if let Err(err) = hls_remuxer.run().await {
+                    log::error!("rtmp event processor error: {}\n", err);
+                }
+            });
+
+            let port = 8010;
+
+            tokio::spawn(async move {
+                if let Err(err) = hls::server::run(port).await {
+                    log::error!("hls server error: {}\n", err);
+                }
+            });
+            stream_hub.set_hls_enabled(true);
 
             server_addresses.push((server_id, address));
         }
@@ -102,6 +150,7 @@ impl RtmpServerManager {
         servers.remove(&id);
         let mut stream_hub = StreamsHub::new(None);
         let sender = stream_hub.get_hub_event_sender();
+
         info!("stream hub sender {:?}", sender);
         // Remove server from stream_hub
 
